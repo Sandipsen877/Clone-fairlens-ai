@@ -8,7 +8,8 @@ import {
 } from '../lib/classify.js';
 import { exportDashboardAsPdf } from '../lib/exportPdf.js';
 
-const API_URL = 'https://unbiased-ai-backend-g1ef.onrender.com/api/upload/analyze';
+const API_URL = (typeof window !== 'undefined' && window.UNBIASED_API_URL) || '/api/analyze';
+
 
 /* ---------------- Dropzone (unchanged) ---------------- */
 function Dropzone({ files, onFilesChange, onClear }) {
