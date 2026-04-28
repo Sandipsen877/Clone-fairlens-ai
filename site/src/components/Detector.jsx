@@ -365,9 +365,7 @@ export default function Detector() {
     });
 
     const fd = new FormData();
-    if (files.length > 0) {
-  fd.append('dataset', files[0], files[0].name);
-    }
+    files.forEach((file) => fd.append('file', file, file.name));
     try {
       const res = await fetch(API_URL, { method: 'POST', body: fd });
       if (res.ok) {
