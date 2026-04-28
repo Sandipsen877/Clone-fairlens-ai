@@ -9,7 +9,7 @@ import {
 import { exportDashboardAsPdf } from '../lib/exportPdf.js';
 
 const API_URL =
-  (typeof window !== 'undefined' && window.UNBIASED_API_URL) || '/api/analyze';
+  'https://unbiased-ai-backend-g1ef.onrender.com/api/upload/analyze';
 
 /* ---------------- Dropzone (multi CSV) ---------------- */
 function Dropzone({ files, onFilesChange, onClear }) {
