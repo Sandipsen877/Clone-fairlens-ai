@@ -8,10 +8,9 @@ import {
 } from '../lib/classify.js';
 import { exportDashboardAsPdf } from '../lib/exportPdf.js';
 
-const API_URL =
-  'https://unbiased-ai-backend-g1ef.onrender.com/api/upload/analyze';
+const API_URL = 'https://unbiased-ai-backend-g1ef.onrender.com/api/upload/analyze';
 
-/* --------------------- Dropzone (unchanged) --------------------- */
+/* ---------------- Dropzone (unchanged) ---------------- */
 function Dropzone({ files, onFilesChange, onClear }) {
   const inputRef = useRef(null);
   const elRef = useRef(null);
@@ -81,10 +80,11 @@ function Dropzone({ files, onFilesChange, onClear }) {
   );
 }
 
-/* ---------- Helper components (MetaChip, TimestampChip, etc.) unchanged ---------- */
+/* ---------------- Small helpers (MetaChip, TimestampChip) ---------------- */
 function MetaChip({ label, value }) {
   return <span className="meta-chip">{label} <strong>{String(value)}</strong></span>;
 }
+
 function TimestampChip({ date }) {
   return (
     <span className="meta-chip meta-chip-time">
@@ -98,11 +98,11 @@ function TimestampChip({ date }) {
   );
 }
 
-/* --------------------- Dashboard (REWORKED) --------------------- */
+/* ---------------- Dashboard (REWORKED) ---------------- */
 function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, dashboardRef }) {
   const stamp = result?.timestamp ? new Date(result.timestamp) : fallbackTimestamp;
 
-  // Overall verdict
+  // Overall risk
   const overallRisk = result?.overallRisk ?? 'Unknown';
   const riskLevelMap = { High: 'bad', Medium: 'warn', Low: 'good' };
   const verdictLevel = riskLevelMap[overallRisk] || 'bad';
@@ -111,15 +111,18 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
     verdictLevel === 'warn' ? 'Medium risk — further investigation needed' :
     'High risk — significant bias detected';
 
-  // Per‑attribute fairness
+  // Fairness metrics per feature
   const attributes = result?.attributes ?? [];
-  // Assessments
+
+  // Assessments per feature
   const assessments = result?.assessments ?? [];
-  // Mitigation
+
+  // Mitigation data
   const mitigation = result?.mitigation ?? null;
 
-  // Model accuracy (if present)
-  const modelAcc = result?.modelAccuracy;
+  // Model info
+  const modelName = result?.modelName;
+  const modelAccuracy = result?.modelAccuracy;
 
   return (
     <div className="detector-output" ref={dashboardRef}>
@@ -131,8 +134,8 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
         <div className="dash-head-right">
           <div className="result-meta">
             <TimestampChip date={stamp} />
-            {modelAcc != null && <MetaChip label="Model Accuracy" value={(modelAcc * 100).toFixed(0) + '%'} />}
-            {result?.datasetRows && <MetaChip label="Rows" value={result.datasetRows.toLocaleString()} />}
+            {modelName && <MetaChip label="Model" value={modelName} />}
+            {modelAccuracy != null && <MetaChip label="Accuracy" value={(modelAccuracy * 100).toFixed(0) + '%'} />}
           </div>
           <button
             type="button" className={`btn-download${pdfBusy ? ' is-busy' : ''}`}
@@ -158,7 +161,7 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
           </div>
         </div>
 
-        {/* Per‑attribute fairness cards */}
+        {/* Per‑feature fairness metrics */}
         {attributes.map((attr) => (
           <div key={attr.name} className="dash-card span-2">
             <div className="chart-head">
@@ -167,7 +170,7 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
                 Disadvantaged: {attr.disadvantaged ?? '—'} · Advantaged: {attr.advantaged ?? '—'}
               </span>
             </div>
-            <div className="metric-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '12px' }}>
               <div>
                 <div className="metric-label">DP Diff</div>
                 <div className="metric-value" style={{ fontSize: '22px' }}>{attr.dpDiff.toFixed(3)}</div>
@@ -184,7 +187,6 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
                 <div className="metric-hint">threshold &lt; 0.1</div>
               </div>
             </div>
-            {/* Group positive rates (tiny bars) */}
             {attr.groups && attr.groups.length > 0 && (
               <div style={{ marginTop: '14px' }}>
                 <div className="metric-label" style={{ marginBottom: '6px' }}>Positive rates by group</div>
@@ -201,9 +203,9 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
           </div>
         ))}
 
-        {/* Assessments: issues & suggested actions */}
+        {/* Assessments per feature */}
         {assessments.length > 0 && (
-          <div className="dash-card span-4 mitigations">
+          <div className="dash-card span-4">
             <div className="chart-head">
               <h4>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="head-icon">
@@ -213,16 +215,26 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
                 Assessment &amp; Recommended Actions
               </h4>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
               {assessments.map((asm) => (
                 <div key={asm.attribute} style={{ border: '1px solid var(--line)', borderRadius: '12px', padding: '16px', background: 'rgba(255,255,255,0.02)' }}>
                   <div style={{ fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {asm.attribute} — risk: <span className={`mit-sev mit-sev-${asm.riskLevel.toLowerCase() === 'high' ? 'high' : asm.riskLevel.toLowerCase() === 'medium' ? 'medium' : 'low'}`}>{asm.riskLevel}</span>
+                    {asm.attribute}
+                    <span className={`mit-sev mit-sev-${asm.riskLevel.toLowerCase() === 'high' ? 'high' : asm.riskLevel.toLowerCase() === 'medium' ? 'medium' : 'low'}`}>
+                      {asm.riskLevel}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-mute)', marginBottom: '12px' }}>
+                    <div>Disadvantaged: <strong>{asm.disadvantagedGroup}</strong></div>
+                    <div>Advantaged: <strong>{asm.advantagedGroup}</strong></div>
                   </div>
                   {asm.issues?.length > 0 && (
-                    <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px', fontSize: '13px', color: 'var(--text-mute)' }}>
-                      {asm.issues.map((issue, i) => <li key={i}>{issue}</li>)}
-                    </ul>
+                    <div style={{ marginBottom: '12px' }}>
+                      <div className="metric-label" style={{ marginBottom: '4px' }}>Issues</div>
+                      <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: 'var(--text-mute)' }}>
+                        {asm.issues.map((issue, i) => <li key={i}>{issue}</li>)}
+                      </ul>
+                    </div>
                   )}
                   {asm.actions?.length > 0 && (
                     <div>
@@ -238,26 +250,32 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
           </div>
         )}
 
-        {/* Mitigation results */}
+        {/* Mitigation card */}
         {mitigation && (
-          <div className="dash-card span-4">
+          <div className="dash-card span-4" style={{ background: 'rgba(74,222,128,.04)', borderColor: 'rgba(74,222,128,.25)' }}>
             <div className="chart-head">
-              <h4>Mitigation Applied: {mitigation.technique}</h4>
-              <span className="muted">
-                Accuracy before: {(mitigation.accuracyBefore * 100).toFixed(1)}% → after: {(mitigation.accuracyAfter * 100).toFixed(1)}%
-              </span>
+              <h4>Mitigation Applied</h4>
+              <span className="muted">Post‑processing fairness improvement</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              {Object.entries(mitigation.afterMetrics).map(([attr, m]) => (
-                <div key={attr} className="dash-card" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                  <div style={{ fontWeight: 600, marginBottom: '10px' }}>{attr}</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-mute)' }}>
-                    DP diff: {m.demographic_parity_difference.toFixed(3)} &nbsp;|&nbsp;
-                    DI ratio: {m.disparate_impact_ratio.toFixed(3)} &nbsp;|&nbsp;
-                    EO diff: {m.equalized_odds_difference.toFixed(3)}
-                  </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '12px' }}>
+              <div>
+                <div className="metric-label">Technique</div>
+                <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '4px' }}>{mitigation.technique}</div>
+              </div>
+              <div>
+                <div className="metric-label">Accuracy before</div>
+                <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '4px' }}>{(mitigation.accuracyBefore * 100).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="metric-label">Accuracy after</div>
+                <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '4px' }}>{(mitigation.accuracyAfter * 100).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="metric-label">Accuracy change</div>
+                <div style={{ fontWeight: 600, fontSize: '16px', marginTop: '4px', color: mitigation.accuracyAfter >= mitigation.accuracyBefore ? 'var(--green)' : 'var(--amber)' }}>
+                  {((mitigation.accuracyAfter - mitigation.accuracyBefore) * 100).toFixed(1)}%
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         )}
@@ -266,7 +284,7 @@ function Dashboard({ result, fallbackTimestamp, onDownload, pdfBusy, pdfLabel, d
   );
 }
 
-/* ---------- Transformation helper ---------- */
+/* ---------- Transform API response ---------- */
 function transformApiResponse(data) {
   const report = data?.data?.report;
   if (!report) return null;
@@ -289,26 +307,28 @@ function transformApiResponse(data) {
     })),
   }));
 
-  // Assessments: per attribute issues & actions
+  // Assessments list
   const assessmentList = Object.entries(assessments).map(([attr, a]) => ({
     attribute: attr,
     riskLevel: a.risk_level ?? 'Unknown',
     issues: a.issues ?? [],
+    disadvantagedGroup: a.disadvantaged_group ?? '—',
+    advantagedGroup: a.advantaged_group ?? '—',
     actions: a.suggested_actions ?? [],
   }));
 
-  // Mitigation shape
+  // Mitigation (simplified)
   const mitigationData = mitigation.technique ? {
     technique: mitigation.technique,
     accuracyBefore: mitigation.accuracy_before,
     accuracyAfter: mitigation.accuracy_after,
-    afterMetrics: mitigation.metrics_after ?? {},
   } : null;
 
   return {
     overallRisk: fairness.overall_risk ?? 'Unknown',
+    modelName: report.model?.name,
     modelAccuracy: report.model?.accuracy,
-    datasetRows: null, // might be missing; could be added later
+    datasetRows: null, // optional
     attributes,
     assessments: assessmentList,
     mitigation: mitigationData,
@@ -316,7 +336,7 @@ function transformApiResponse(data) {
   };
 }
 
-/* --------------------- Detector (main component) --------------------- */
+/* ---------------- Detector (main component) ---------------- */
 export default function Detector() {
   const [files, setFiles] = useState([]);
   const [formMsg, setFormMsg] = useState(null);
@@ -432,4 +452,4 @@ export default function Detector() {
       </div>
     </section>
   );
-}
+    }
